@@ -41,6 +41,11 @@ jobs:
       BASE_SHA: ${{ inputs.base_sha }}
       SOURCE_SHA: ${{ inputs.source_sha }}
       SOURCE_TREE: ${{ inputs.source_tree }}
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_SUPABASE_URL: https://ci.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_ci_placeholder
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
     steps:
       - name: Prepare exact Lurion checkout
         id: prepare
@@ -54,6 +59,16 @@ jobs:
           [[ "$SOURCE_TREE" =~ ^[0-9a-f]{40}$ ]] || { echo "Invalid source tree"; exit 2; }
 
           git -C "$LURION_REPO" rev-parse --git-dir >/dev/null
+          origin_url="$(git -C "$LURION_REPO" remote get-url origin)"
+          case "$origin_url" in
+            git@github.com:faustorcabrera/Lurion.git|https://github.com/faustorcabrera/Lurion.git)
+              ;;
+            *)
+              echo "Unexpected Lurion origin: $origin_url"
+              exit 2
+              ;;
+          esac
+
           git -C "$LURION_REPO" fetch origin --prune
           git -C "$LURION_REPO" cat-file -e "${BASE_SHA}^{commit}"
           git -C "$LURION_REPO" cat-file -e "${SOURCE_SHA}^{commit}"
@@ -68,11 +83,6 @@ jobs:
           worktree="$RUNNER_TEMP/lurion-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           rm -rf "$worktree"
           git -C "$LURION_REPO" worktree add --detach "$worktree" "$SOURCE_SHA"
-
-          if [[ -f "$LURION_REPO/.env.local" ]]; then
-            cp "$LURION_REPO/.env.local" "$worktree/.env.local"
-            chmod 600 "$worktree/.env.local"
-          fi
 
           {
             echo "worktree=$worktree"
@@ -94,6 +104,7 @@ jobs:
 
           set +e
           (
+            set -euo pipefail
             npm ci
             LURION_VERSION_BASE_REF="$BASE_SHA" npm run check
             npm audit --audit-level=moderate
@@ -124,9 +135,8 @@ jobs:
           WORKTREE: ${{ steps.prepare.outputs.worktree }}
         run: |
           set +e
-          if [[ -n "${WORKTREE:-}" ]]; then
-            git -C "$LURION_REPO" worktree remove --force "$WORKTREE"
-            rm -rf "$WORKTREE"
-          fi
+          worktree="${WORKTREE:-$RUNNER_TEMP/lurion-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}"
+          git -C "$LURION_REPO" worktree remove --force "$worktree"
+          rm -rf "$worktree"
           git -C "$LURION_REPO" worktree prune
           exit 0
