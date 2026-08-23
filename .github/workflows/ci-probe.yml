@@ -1,0 +1,17 @@
+name: CI Probe
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm Actions control plane
+        run: echo "GitHub Actions control plane is healthy"
