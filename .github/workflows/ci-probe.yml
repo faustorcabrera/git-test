@@ -14,7 +14,9 @@ permissions:
 
 jobs:
   probe:
-    runs-on: ubuntu-latest
+    runs-on:
+      - self-hosted
+      - lurion-ci
     steps:
       - name: Confirm Actions control plane
         run: echo "GitHub Actions control plane is healthy"
